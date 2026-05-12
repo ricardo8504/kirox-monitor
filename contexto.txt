@@ -1,0 +1,333 @@
+# Prompt para desarrollar la aplicación
+
+Quiero desarrollar una aplicación robusta y escalable para monitoreo y administración de servidores donde se ejecuta Odoo 9 con python 2.7.
+
+## Objetivo general
+
+La aplicación debe permitir configurar múltiples servidores y monitorear en tiempo real el estado, rendimiento y salud de cada uno, incluyendo métricas del sistema operativo, procesos de Odoo y estado de la base de datos PostgreSQL.
+
+La solución debe enfocarse en:
+
+* Alto rendimiento.
+* Bajo consumo de recursos.
+* Escalabilidad.
+* Seguridad.
+* Fácil despliegue.
+* Buenas prácticas de desarrollo.
+* Arquitectura mantenible.
+
+---
+
+# Funcionalidades principales
+
+## 1. Autenticación y usuarios
+
+La aplicación debe incluir:
+
+* Login seguro.
+* Manejo de sesiones.
+* JWT o autenticación moderna.
+* Roles y permisos.
+* Recuperación de contraseña.
+* Auditoría básica de accesos.
+
+Roles sugeridos:
+
+* Administrador.
+* Operador.
+* Solo lectura.
+
+---
+
+# 2. Gestión de servidores
+
+Debe permitir:
+
+* Registrar múltiples servidores.
+* Editar/eliminar servidores.
+* Configurar:
+
+  * IP o dominio.
+  * Puerto.
+  * Usuario SSH.
+  * Clave o llave SSH.
+  * Tipo de servidor.
+  * Ambiente (producción, pruebas, desarrollo).
+  * Intervalos de monitoreo configurables por servidor.
+
+La aplicación debe validar conectividad antes de guardar la configuración.
+
+---
+
+# 3. Monitoreo del servidor
+
+La aplicación debe monitorear:
+
+## Métricas del sistema
+
+* Uso de CPU.
+* Uso de RAM.
+* Uso de SWAP.
+* Espacio en disco.
+* IO Disk.
+* Temperatura (si aplica).
+* Load average.
+* Uso de red.
+* Procesos activos.
+* Servicios caídos.
+* Reinicios del servidor.
+
+## Métricas de Odoo
+
+* Procesos de Odoo activos.
+* Workers activos.
+* Procesos colgados.
+* Consumo de memoria de Odoo.
+* Consumo de CPU por proceso.
+* Tiempo de respuesta.
+* Logs críticos.
+* Cantidad de peticiones concurrentes.
+* Estado de cron jobs.
+
+## Métricas PostgreSQL
+
+* Conexiones activas.
+* Queries lentas.
+* Bloqueos.
+* Deadlocks.
+* Procesos colgados.
+* Tiempo de ejecución de consultas.
+* Uso de índices.
+* Tamaño de tablas.
+* Replicación (si aplica).
+* Estado general de la base de datos.
+
+---
+
+# 4. Sistema de alertas
+
+Debe incluir:
+
+* Alertas configurables.
+* Umbrales personalizados.
+* Notificaciones por:
+
+  * Email.
+  * Telegram.
+  * WhatsApp (opcional).
+  * Webhooks.
+* Alertas automáticas cuando:
+
+  * El servidor esté caído.
+  * Odoo no responda.
+  * PostgreSQL tenga bloqueos.
+  * CPU/RAM exceda límites.
+  * Espacio en disco esté crítico.
+
+Las alertas deben evitar spam mediante cooldowns configurables.
+
+---
+
+# 5. Dashboard y gráficas
+
+La aplicación debe generar dashboards dinámicos y configurables.
+
+Características:
+
+* Gráficas en tiempo real.
+* Históricos.
+* Comparativas.
+* Filtros por fechas.
+* Configuración personalizada por usuario.
+* Widgets arrastrables.
+* Exportación de métricas.
+
+Tipos de gráficas:
+
+* Línea.
+* Barras.
+* Área.
+* Heatmaps.
+* KPIs.
+
+El usuario debe poder:
+
+* Crear dashboards personalizados.
+* Elegir qué métricas visualizar.
+* Configurar rangos de tiempo.
+* Guardar vistas personalizadas.
+
+---
+
+# 6. Arquitectura y buenas prácticas
+
+Quiero que el proyecto siga buenas prácticas reales de ingeniería de software.
+
+## Arquitectura
+
+Sugiere y aplica:
+
+* Arquitectura modular.
+* Clean Architecture.
+* Separación backend/frontend.
+* Principios SOLID.
+* Repository Pattern.
+* Services Layer.
+* DTOs.
+* Validaciones centralizadas.
+
+## Calidad
+
+* Tipado fuerte.
+* Logging estructurado.
+* Manejo centralizado de errores.
+* Variables de entorno.
+* Configuración desacoplada.
+* Tests unitarios.
+* Tests de integración.
+* Linters y formatters.
+* CI/CD básico.
+
+## Seguridad
+
+* Cifrado de credenciales.
+* Protección CSRF/XSS.
+* Rate limiting.
+* Manejo seguro de secretos.
+* Auditoría básica.
+
+---
+
+# 7. Tecnologías sugeridas
+
+Puedes sugerir mejores opciones, pero inicialmente pienso en:
+
+## Backend
+
+* Python + FastAPI.
+
+## Frontend
+
+* React + TypeScript.
+
+## Base de datos
+
+* PostgreSQL.
+
+## Monitoreo interno
+
+* Async workers.
+* Celery o RQ.
+* Redis.
+
+## Infraestructura
+
+* Docker.
+* Docker Compose.
+
+## Gráficas
+
+* Apache ECharts o Recharts.
+
+---
+
+# 8. Ejecución periódica de métricas
+
+El sistema debe:
+
+* Ejecutar tareas programadas.
+* Configurar periodicidad por servidor.
+* Evitar saturar el servidor monitoreado.
+* Manejar colas.
+* Tener reintentos automáticos.
+* Limitar concurrencia.
+* Detectar timeouts.
+
+---
+
+# 9. Instalación y despliegue
+
+Quiero que la instalación sea extremadamente simple.
+
+La idea es:
+
+* Clonar repositorio.
+* Configurar `.env`.
+* Ejecutar Docker Compose.
+* Que todo se instale automáticamente.
+
+Debe incluir:
+
+* Dockerfile optimizado.
+* docker-compose.yml.
+* Scripts de inicialización.
+* Migraciones automáticas.
+* Seeds básicos.
+
+Idealmente:
+
+* Un solo comando para levantar todo.
+
+Ejemplo:
+
+```bash
+docker compose up -d
+```
+
+---
+
+# 10. Documentación automática y plan de desarrollo
+
+Quiero que el proyecto tenga un archivo `.md` de seguimiento del desarrollo.
+
+Requisitos:
+
+* Crear un roadmap inicial.
+* Dividir tareas por fases.
+* Documentar avances importantes.
+* Registrar decisiones técnicas.
+* Mantener documentación simple y resumida.
+* Reducir consumo innecesario de tokens.
+* Actualizar el documento conforme avances.
+
+La documentación debe incluir:
+
+* Estado actual.
+* Tareas pendientes.
+* Problemas encontrados.
+* Soluciones implementadas.
+* Próximos pasos.
+
+---
+
+# 11. Extras deseados (puedes sugerir más)
+
+Puedes proponer funcionalidades adicionales útiles como:
+
+* Integración con Prometheus.
+* Integración con Grafana.
+* Métricas IA para detectar anomalías.
+* Predicción de fallos.
+* Health checks automáticos.
+* Backup monitoring.
+* Multi-tenant.
+* Sistema de plugins.
+* API pública.
+* WebSockets para tiempo real.
+
+---
+
+# Resultado esperado
+
+Quiero que actúes como un arquitecto de software senior y desarrolles:
+
+1. La arquitectura completa.
+2. Estructura del proyecto.
+3. Roadmap detallado.
+4. MVP inicial.
+5. Dockerización.
+6. Buenas prácticas.
+7. Estrategia de escalabilidad.
+8. Estrategia de monitoreo.
+9. Estrategia de seguridad.
+10. Documentación continua en Markdown.
