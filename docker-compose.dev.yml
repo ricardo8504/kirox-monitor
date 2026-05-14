@@ -1,0 +1,73 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file: .env
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    command: celery -A app.workers.celery_app worker --loglevel=debug --concurrency=2 -E
+    volumes:
+      - ./backend:/app
+    env_file: .env
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    command: celery -A app.workers.celery_app beat --loglevel=debug
+    volumes:
+      - ./backend:/app
+    env_file: .env
+
+  celery-flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    command: celery -A app.workers.celery_app flower --port=5555
+    env_file: .env
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - backend-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+    networks:
+      - frontend-net
+
+  nginx:
+    ports:
+      - "80:80"
