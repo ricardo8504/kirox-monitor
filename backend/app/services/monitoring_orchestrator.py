@@ -40,7 +40,9 @@ class MonitoringOrchestrator:
     def _decrypt_db_password(self, server: "Server") -> str | None:
         return decrypt(server.db_password_encrypted) if server.db_password_encrypted else None
 
-    def _run_commands(self, server: "Server", commands: dict[str, str]) -> dict[str, str]:
+    def _run_commands(
+        self, server: "Server", commands: dict[str, str], log_stderr: bool = False
+    ) -> dict[str, str]:
         password, key = self._decrypt_creds(server)
         outputs: dict[str, str] = {}
         for name, cmd in commands.items():
@@ -53,6 +55,14 @@ class MonitoringOrchestrator:
                     password=password,
                     key=key,
                 )
+                if log_stderr and result.stderr.strip():
+                    logger.warning(
+                        "pg_command_stderr",
+                        server_id=str(server.id),
+                        command=name,
+                        stderr=result.stderr.strip(),
+                        exit_code=result.exit_code,
+                    )
                 outputs[name] = result.stdout
             except ExternalServiceError:
                 outputs[name] = ""
@@ -78,7 +88,7 @@ class MonitoringOrchestrator:
             db_port=server.db_port,
             db_user=server.db_user,
             db_password=db_password,
-        )))
+        ), log_stderr=True))
 
         batch: list[Metric] = []
         scalar_metrics = [

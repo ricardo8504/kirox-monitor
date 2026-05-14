@@ -2,9 +2,12 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import delete
+
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import CelerySessionLocal
 from app.core.logging import get_logger
+from app.models.metric import Metric, OdooMetric, PgMetric
 from app.repositories.metric_repository import MetricRepository
 from app.repositories.server_repository import ServerRepository
 from app.services.monitoring_orchestrator import MonitoringOrchestrator
@@ -17,7 +20,7 @@ logger = get_logger(__name__)
 @celery_app.task(name="app.workers.tasks.collect_metrics", bind=True, max_retries=2)
 def collect_metrics(self, server_id: str) -> dict:  # type: ignore[no-untyped-def]
     async def _run() -> dict:
-        async with AsyncSessionLocal() as session:
+        async with CelerySessionLocal() as session:
             orchestrator = MonitoringOrchestrator(
                 server_repo=ServerRepository(session),
                 metric_repo=MetricRepository(session),
@@ -38,7 +41,7 @@ def collect_metrics(self, server_id: str) -> dict:  # type: ignore[no-untyped-de
 @celery_app.task(name="app.workers.tasks.collect_all_servers")
 def collect_all_servers() -> dict:
     async def _get_active_ids() -> list[str]:
-        async with AsyncSessionLocal() as session:
+        async with CelerySessionLocal() as session:
             repo = ServerRepository(session)
             servers = await repo.list(is_active=True)
             return [str(s.id) for s in servers]
@@ -52,13 +55,9 @@ def collect_all_servers() -> dict:
 
 @celery_app.task(name="app.workers.tasks.cleanup_old_metrics")
 def cleanup_old_metrics() -> dict:
-    from sqlalchemy import delete
-
-    from app.models.metric import Metric, OdooMetric, PgMetric
-
     async def _cleanup() -> None:
         cutoff = datetime.now(UTC) - timedelta(days=settings.metric_retention_days)
-        async with AsyncSessionLocal() as session:
+        async with CelerySessionLocal() as session:
             for model in (Metric, OdooMetric, PgMetric):
                 await session.execute(delete(model).where(model.timestamp < cutoff))
             await session.commit()
