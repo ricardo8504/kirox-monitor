@@ -6,9 +6,13 @@ from contextlib import asynccontextmanager
 import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
 from app.core.exception_handlers import register_exception_handlers
+from app.core.limiter import limiter
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestLoggingMiddleware
 from app.core.websocket_manager import ws_manager
@@ -20,21 +24,31 @@ _WS_CHANNEL_PREFIX = "ws:metrics:"
 
 
 async def _redis_subscriber() -> None:
-    r = aioredis.from_url(settings.redis_url)
-    pubsub = r.pubsub()
-    await pubsub.psubscribe(_WS_CHANNEL_PATTERN)
-    logger.info("ws_redis_subscriber_started")
-    async for message in pubsub.listen():
-        if message["type"] != "pmessage":
-            continue
+    backoff = 1
+    while True:
         try:
-            raw_channel = message["channel"]
-            channel = raw_channel.decode() if isinstance(raw_channel, bytes) else raw_channel
-            server_id_str = channel.removeprefix(_WS_CHANNEL_PREFIX)
-            data = json.loads(message["data"])
-            await ws_manager.broadcast_to_server(uuid_lib.UUID(server_id_str), data)
+            r = aioredis.from_url(settings.redis_url)
+            pubsub = r.pubsub()
+            await pubsub.psubscribe(_WS_CHANNEL_PATTERN)
+            logger.info("ws_redis_subscriber_started")
+            backoff = 1
+            async for message in pubsub.listen():
+                if message["type"] != "pmessage":
+                    continue
+                try:
+                    raw_channel = message["channel"]
+                    channel = raw_channel.decode() if isinstance(raw_channel, bytes) else raw_channel
+                    server_id_str = channel.removeprefix(_WS_CHANNEL_PREFIX)
+                    data = json.loads(message["data"])
+                    await ws_manager.broadcast_to_server(uuid_lib.UUID(server_id_str), data)
+                except Exception as exc:
+                    logger.warning("ws_redis_forward_error", error=str(exc))
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
-            logger.warning("ws_redis_forward_error", error=str(exc))
+            logger.warning("ws_redis_subscriber_reconnecting", error=str(exc), backoff_s=backoff)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
 
 
 @asynccontextmanager
@@ -58,6 +72,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins_list,

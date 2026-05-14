@@ -2,6 +2,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import redis as sync_redis
 from sqlalchemy import delete
 
 from app.core.config import settings
@@ -18,30 +19,76 @@ from app.workers.celery_app import celery_app
 
 logger = get_logger(__name__)
 
+_COLLECT_LOCK_PREFIX = "celery:collect:lock:"
+_COLLECT_LOCK_TTL = 55
+
+_CIRCUIT_KEY = "circuit:open:{server_id}"
+_CIRCUIT_FAIL_KEY = "circuit:failures:{server_id}"
+
+
+def _is_circuit_open(r: "sync_redis.Redis", server_id: str) -> bool:
+    return r.get(_CIRCUIT_KEY.format(server_id=server_id)) is not None
+
+
+def _record_failure(r: "sync_redis.Redis", server_id: str) -> None:
+    fail_key = _CIRCUIT_FAIL_KEY.format(server_id=server_id)
+    failures = r.incr(fail_key)
+    r.expire(fail_key, 3600)
+    if failures >= settings.circuit_breaker_threshold:
+        r.set(
+            _CIRCUIT_KEY.format(server_id=server_id),
+            "1",
+            ex=settings.circuit_breaker_timeout,
+        )
+        logger.warning("circuit_breaker_opened", server_id=server_id, failures=failures)
+
+
+def _record_success(r: "sync_redis.Redis", server_id: str) -> None:
+    r.delete(_CIRCUIT_FAIL_KEY.format(server_id=server_id))
+    r.delete(_CIRCUIT_KEY.format(server_id=server_id))
+
 
 @celery_app.task(name="app.workers.tasks.collect_metrics", bind=True, max_retries=2)
 def collect_metrics(self, server_id: str) -> dict:  # type: ignore[no-untyped-def]
-    async def _run() -> dict:
-        async with CelerySessionLocal() as session:
-            orchestrator = MonitoringOrchestrator(
-                server_repo=ServerRepository(session),
-                metric_repo=MetricRepository(session),
-                ssh=ssh_manager,
-                alert_engine=AlertEngine(
-                    rule_repo=AlertRuleRepository(session),
-                    event_repo=AlertEventRepository(session),
-                ),
-            )
-            success = await orchestrator.collect(uuid.UUID(server_id))
-            if success:
-                await session.commit()
-            return {"server_id": server_id, "success": success}
-
+    r = sync_redis.from_url(settings.redis_url)
     try:
-        return asyncio.run(_run())
-    except Exception as exc:
-        logger.error("collect_metrics_failed", server_id=server_id, error=str(exc))
-        raise self.retry(exc=exc, countdown=30) from exc
+        if _is_circuit_open(r, server_id):
+            logger.info("collect_metrics_circuit_open", server_id=server_id)
+            return {"server_id": server_id, "circuit_open": True}
+
+        lock_key = f"{_COLLECT_LOCK_PREFIX}{server_id}"
+        acquired = r.set(lock_key, "1", nx=True, ex=_COLLECT_LOCK_TTL)
+        if not acquired:
+            logger.info("collect_metrics_skipped_locked", server_id=server_id)
+            return {"server_id": server_id, "skipped": True}
+
+        async def _run() -> dict:
+            async with CelerySessionLocal() as session:
+                orchestrator = MonitoringOrchestrator(
+                    server_repo=ServerRepository(session),
+                    metric_repo=MetricRepository(session),
+                    ssh=ssh_manager,
+                    alert_engine=AlertEngine(
+                        rule_repo=AlertRuleRepository(session),
+                        event_repo=AlertEventRepository(session),
+                    ),
+                )
+                success = await orchestrator.collect(uuid.UUID(server_id))
+                if success:
+                    await session.commit()
+                return {"server_id": server_id, "success": success}
+
+        try:
+            result = asyncio.run(_run())
+            _record_success(r, server_id)
+            return result
+        except Exception as exc:
+            r.delete(lock_key)
+            _record_failure(r, server_id)
+            logger.error("collect_metrics_failed", server_id=server_id, error=str(exc))
+            raise self.retry(exc=exc, countdown=30) from exc
+    finally:
+        r.close()
 
 
 @celery_app.task(name="app.workers.tasks.collect_all_servers")

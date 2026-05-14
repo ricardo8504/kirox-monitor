@@ -62,3 +62,33 @@ def test_connect_generic_failure(manager):
 
         with pytest.raises(ExternalServiceError, match="Cannot connect"):
             manager._connect("10.0.0.1", 22, "ubuntu", password="p")
+
+
+def test_get_connection_yields_and_closes(manager):
+    mock_client = MagicMock()
+    with patch.object(manager, "_connect", return_value=mock_client):
+        with manager.get_connection("10.0.0.1", 22, "ubuntu", password="p") as conn:
+            assert conn is mock_client
+        mock_client.close.assert_called_once()
+
+
+def test_execute_command_on_success(manager):
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    mock_stdout.read.return_value = b"hello"
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    result = manager.execute_command_on(mock_client, "echo hello")
+    assert result.stdout == "hello"
+    assert result.exit_code == 0
+
+
+def test_execute_command_on_raises_on_error(manager):
+    mock_client = MagicMock()
+    mock_client.exec_command.side_effect = OSError("broken pipe")
+
+    with pytest.raises(ExternalServiceError):
+        manager.execute_command_on(mock_client, "ls")

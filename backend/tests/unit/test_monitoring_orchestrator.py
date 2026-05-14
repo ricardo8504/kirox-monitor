@@ -1,4 +1,5 @@
 import uuid
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -49,7 +50,12 @@ def mock_ws_publish():
 @pytest.fixture
 def ssh():
     m = MagicMock(spec=SSHManager)
-    m.execute_command.return_value = CommandResult(stdout="", stderr="", exit_code=0)
+    mock_conn = MagicMock()
+    ctx_mgr = MagicMock()
+    ctx_mgr.__enter__ = MagicMock(return_value=mock_conn)
+    ctx_mgr.__exit__ = MagicMock(return_value=False)
+    m.get_connection.return_value = ctx_mgr
+    m.execute_command_on.return_value = CommandResult(stdout="", stderr="", exit_code=0)
     return m
 
 
@@ -77,7 +83,6 @@ async def test_collect_server_not_found(orchestrator, server_repo):
 async def test_collect_success(orchestrator, server_repo, metric_repo, ssh):
     server = make_server()
     server_repo.get_by_id.return_value = server
-    ssh.execute_command.return_value = CommandResult(stdout="", stderr="", exit_code=0)
 
     result = await orchestrator.collect(server.id)
     assert result is True
@@ -91,8 +96,8 @@ async def test_collect_ssh_errors_per_command_still_succeeds(orchestrator, serve
     from app.core.exceptions import ExternalServiceError
     server = make_server()
     server_repo.get_by_id.return_value = server
-    # Per-command SSH errors are caught inside _run_commands → empty outputs → zero metrics saved
-    ssh.execute_command.side_effect = ExternalServiceError("SSH", "timeout")
+    # Per-command SSH errors are caught inside _run_commands_on → empty outputs → zero metrics saved
+    ssh.execute_command_on.side_effect = ExternalServiceError("SSH", "timeout")
 
     result = await orchestrator.collect(server.id)
     # Still returns True — server was processed (with empty metrics)
@@ -100,3 +105,15 @@ async def test_collect_ssh_errors_per_command_still_succeeds(orchestrator, serve
     metric_repo.insert_batch.assert_called_once()
     metric_repo.insert_odoo.assert_called_once()
     metric_repo.insert_pg.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_collect_ssh_connection_failure_returns_false(orchestrator, server_repo, ssh):
+    from app.core.exceptions import ExternalServiceError
+    server = make_server()
+    server_repo.get_by_id.return_value = server
+    # Connection-level failure → orchestrator returns False
+    ssh.get_connection.return_value.__enter__.side_effect = ExternalServiceError("SSH", "refused")
+
+    result = await orchestrator.collect(server.id)
+    assert result is False

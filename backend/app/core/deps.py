@@ -36,3 +36,7 @@ def require_roles(*roles: UserRole):  # type: ignore[no-untyped-def]
             raise ForbiddenError("Insufficient permissions")
         return user
     return _check
+
+
+async def get_audit_repo(db: AsyncSession = Depends(get_db)) -> AuditLogRepository:
+    return AuditLogRepository(db)

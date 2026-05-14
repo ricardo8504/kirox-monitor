@@ -61,6 +61,12 @@ class Settings(BaseSettings):
 
     # Rate limiting
     rate_limit_login: str = "5/minute"
+    rate_limit_refresh: str = "10/minute"
+    rate_limit_test_connection: str = "3/minute"
+
+    # Circuit breaker
+    circuit_breaker_threshold: int = 3
+    circuit_breaker_timeout: int = 900
 
     @field_validator("secret_key")
     @classmethod

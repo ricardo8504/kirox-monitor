@@ -43,25 +43,17 @@ class MonitoringOrchestrator:
     def _decrypt_db_password(self, server: "Server") -> str | None:
         return decrypt(server.db_password_encrypted) if server.db_password_encrypted else None
 
-    def _run_commands(
-        self, server: "Server", commands: dict[str, str], log_stderr: bool = False
+    def _run_commands_on(
+        self, client, commands: dict[str, str], server_id: str = "", log_stderr: bool = False
     ) -> dict[str, str]:
-        password, key = self._decrypt_creds(server)
         outputs: dict[str, str] = {}
         for name, cmd in commands.items():
             try:
-                result = self._ssh.execute_command(
-                    host=server.host,
-                    port=server.port,
-                    user=server.ssh_user,
-                    command=cmd,
-                    password=password,
-                    key=key,
-                )
+                result = self._ssh.execute_command_on(client, cmd)
                 if log_stderr and result.stderr.strip():
                     logger.warning(
                         "pg_command_stderr",
-                        server_id=str(server.id),
+                        server_id=server_id,
                         command=name,
                         stderr=result.stderr.strip(),
                         exit_code=result.exit_code,
@@ -140,21 +132,27 @@ class MonitoringOrchestrator:
             return False
 
         now = datetime.now(UTC)
+        password, key = self._decrypt_creds(server)
+        db_password = self._decrypt_db_password(server)
+        sid = str(server_id)
 
         try:
-            sys_out = self._run_commands(server, self._sys.COMMANDS)
+            with self._ssh.get_connection(server.host, server.port, server.ssh_user, password, key) as conn:
+                sys_out = self._run_commands_on(conn, self._sys.COMMANDS, server_id=sid)
+                odoo_out = self._run_commands_on(conn, get_odoo_commands(server.odoo_port), server_id=sid)
+                pg_out = self._run_commands_on(
+                    conn,
+                    get_pg_commands(db_port=server.db_port, db_user=server.db_user, db_password=db_password),
+                    server_id=sid,
+                    log_stderr=True,
+                )
         except Exception as exc:
-            logger.warning("ssh_collect_failed", server_id=str(server_id), error=str(exc))
+            logger.warning("ssh_collect_failed", server_id=sid, error=str(exc))
             return False
 
-        db_password = self._decrypt_db_password(server)
         sys_m = self._sys.parse(sys_out)
-        odoo_m = self._odoo.parse(self._run_commands(server, get_odoo_commands(server.odoo_port)))
-        pg_m = self._pg.parse(self._run_commands(server, get_pg_commands(
-            db_port=server.db_port,
-            db_user=server.db_user,
-            db_password=db_password,
-        ), log_stderr=True))
+        odoo_m = self._odoo.parse(odoo_out)
+        pg_m = self._pg.parse(pg_out)
 
         batch: list[Metric] = []
         scalar_metrics = [

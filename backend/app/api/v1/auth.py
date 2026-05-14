@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Request
 
+from app.core.config import settings
 from app.core.deps import get_auth_service, get_current_user
+from app.core.limiter import limiter
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse
 from app.schemas.user import UserResponse
@@ -10,9 +12,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit(settings.rate_limit_login)
 async def login(
-    body: LoginRequest,
     request: Request,
+    body: LoginRequest,
     auth: AuthService = Depends(get_auth_service),
 ) -> TokenResponse:
     ip = request.client.host if request.client else None
@@ -21,7 +24,9 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit(settings.rate_limit_refresh)
 async def refresh_token(
+    request: Request,
     body: RefreshTokenRequest,
     auth: AuthService = Depends(get_auth_service),
 ) -> TokenResponse:

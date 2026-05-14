@@ -1,5 +1,7 @@
 import io
+from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Generator
 
 import paramiko
 
@@ -48,6 +50,33 @@ class SSHManager:
         except Exception as exc:
             raise ExternalServiceError("SSH", f"Cannot connect to {host}:{port} — {exc}") from exc
         return client
+
+    @contextmanager
+    def get_connection(
+        self,
+        host: str,
+        port: int,
+        user: str,
+        password: str | None = None,
+        key: str | None = None,
+    ) -> Generator[paramiko.SSHClient, None, None]:
+        client = self._connect(host, port, user, password=password, key=key)
+        try:
+            yield client
+        finally:
+            client.close()
+
+    def execute_command_on(self, client: paramiko.SSHClient, command: str) -> "CommandResult":
+        try:
+            _, stdout, stderr = client.exec_command(command, timeout=self._timeout)
+            exit_code = stdout.channel.recv_exit_status()
+            return CommandResult(
+                stdout=stdout.read().decode(errors="replace"),
+                stderr=stderr.read().decode(errors="replace"),
+                exit_code=exit_code,
+            )
+        except Exception as exc:
+            raise ExternalServiceError("SSH", str(exc)) from exc
 
     def test_connection(
         self,

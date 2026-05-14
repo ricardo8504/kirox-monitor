@@ -2,20 +2,22 @@ import json
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_roles
+from app.core.deps import get_audit_repo, get_current_user, require_roles
 from app.core.encryption import encrypt
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.alert import AlertRule, NotificationChannel
+from app.models.audit_log import AuditLog
 from app.models.user import User, UserRole
 from app.repositories.alert_repository import (
     AlertEventRepository,
     AlertRuleRepository,
     NotificationChannelRepository,
 )
+from app.repositories.audit_log_repository import AuditLogRepository
 from app.schemas.alert import (
     AlertEventResponse,
     AlertRuleCreate,
@@ -49,9 +51,11 @@ def _channel_repo(db: AsyncSession = Depends(get_db)) -> NotificationChannelRepo
 @router.post("/alerts/rules", response_model=AlertRuleResponse, status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(_write_role)])
 async def create_rule(
+    request: Request,
     body: AlertRuleCreate,
     user: User = Depends(get_current_user),
     repo: AlertRuleRepository = Depends(_rule_repo),
+    audit: AuditLogRepository = Depends(get_audit_repo),
 ) -> AlertRuleResponse:
     rule = await repo.create(AlertRule(
         server_id=body.server_id,
@@ -61,6 +65,11 @@ async def create_rule(
         severity=body.severity,
         cooldown_minutes=body.cooldown_minutes,
         created_by=user.id,
+    ))
+    await audit.create(AuditLog(
+        user_id=user.id, action="CREATE", resource="alert_rule", resource_id=str(rule.id),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
     ))
     return AlertRuleResponse.model_validate(rule)
 
@@ -82,9 +91,12 @@ async def list_rules(
 @router.put("/alerts/rules/{rule_id}", response_model=AlertRuleResponse,
             dependencies=[Depends(_write_role)])
 async def update_rule(
+    request: Request,
     rule_id: uuid.UUID,
     body: AlertRuleUpdate,
+    user: User = Depends(get_current_user),
     repo: AlertRuleRepository = Depends(_rule_repo),
+    audit: AuditLogRepository = Depends(get_audit_repo),
 ) -> AlertRuleResponse:
     rule = await repo.get_by_id(rule_id)
     if not rule:
@@ -94,19 +106,32 @@ async def update_rule(
         if val is not None:
             setattr(rule, field, val)
     rule = await repo.update(rule)
+    await audit.create(AuditLog(
+        user_id=user.id, action="UPDATE", resource="alert_rule", resource_id=str(rule_id),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    ))
     return AlertRuleResponse.model_validate(rule)
 
 
 @router.delete("/alerts/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(_write_role)])
 async def delete_rule(
+    request: Request,
     rule_id: uuid.UUID,
+    user: User = Depends(get_current_user),
     repo: AlertRuleRepository = Depends(_rule_repo),
+    audit: AuditLogRepository = Depends(get_audit_repo),
 ) -> None:
     rule = await repo.get_by_id(rule_id)
     if not rule:
         raise NotFoundError("AlertRule", rule_id)
     await repo.delete(rule)
+    await audit.create(AuditLog(
+        user_id=user.id, action="DELETE", resource="alert_rule", resource_id=str(rule_id),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    ))
 
 
 # --- Alert Events ---
