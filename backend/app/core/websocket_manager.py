@@ -19,7 +19,6 @@ class ConnectionManager:
     async def connect(
         self, websocket: WebSocket, server_id: uuid.UUID | None, user_id: uuid.UUID
     ) -> None:
-        await websocket.accept()
         uid = str(user_id)
         self._user_connections[uid].add(websocket)
         if server_id:

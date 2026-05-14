@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     secret_key: str
     encryption_key: str
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 480
     refresh_token_expire_days: int = 7
 
     # Database

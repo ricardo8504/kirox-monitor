@@ -24,6 +24,7 @@ async def ws_metrics(
     server_id: uuid.UUID,
     token: str | None = None,
 ) -> None:
+    await websocket.accept()
     try:
         payload = await _auth_token(token)
         user_id = uuid.UUID(payload["sub"])
@@ -44,6 +45,7 @@ async def ws_alerts(
     websocket: WebSocket,
     token: str | None = None,
 ) -> None:
+    await websocket.accept()
     try:
         payload = await _auth_token(token)
         user_id = uuid.UUID(payload["sub"])

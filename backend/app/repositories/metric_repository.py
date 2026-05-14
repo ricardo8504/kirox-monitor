@@ -17,8 +17,8 @@ class MetricRepository:
             text(
                 "SELECT DISTINCT ON (metric_type) * FROM metrics"
                 " WHERE server_id = :sid ORDER BY metric_type, timestamp DESC"
-            )
-        ).bindparams(sid=server_id)
+            ).bindparams(sid=server_id)
+        )
         result = await self._session.execute(stmt)
         return {m.metric_type: m for m in result.scalars().all()}
 
