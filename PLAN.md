@@ -10,9 +10,9 @@
 
 ## Estado actual
 
-- **Fase activa:** 7 — Frontend: Base
-- **Paso activo:** 13 — Extras opcionales
-- **Último completado:** 12.2 — GitHub Actions CI ✓ (Fases 11+12 completas, 134 tests totales)
+- **Fase activa:** 14 — Correcciones y mejoras de producción → EN PROGRESO
+- **Paso activo:** 14.3 — WebSocket real-time pipeline
+- **Último completado:** 14.2 — AlertEngine conectado al pipeline ✓
 - **Problemas abiertos:** (ninguno)
 - **Decisiones técnicas registradas:** Ver sección al final
 
@@ -511,6 +511,42 @@ odoo-monitor/
 - [ ] API key de solo lectura para integrar con otros sistemas
 - [ ] Modelo ApiKey en DB, endpoints de gestión
 - [ ] Auth middleware que acepta Bearer JWT O X-API-Key header
+
+---
+
+## FASE 14 — Correcciones y mejoras de producción
+
+**Objetivo:** Activar funcionalidad implementada pero no conectada; mejorar visibilidad en producción.
+
+### 14.1 — Actualizar `last_seen` tras cada colección exitosa ✓
+- [x] En `monitoring_orchestrator.collect()`, antes de retornar `True`, asignar `server.last_seen = now.isoformat()`
+- [x] SQLAlchemy trackea el cambio automáticamente; se persiste en el mismo `session.commit()` del worker
+- [x] El campo ya existe en el modelo; no requiere migración
+- **Verificación:** Después de un ciclo de colección, `server.last_seen` muestra timestamp reciente en el frontend
+
+### 14.2 — Conectar `AlertEngine` al pipeline de colección ✓
+- [x] Añadir parámetro opcional `alert_engine: AlertEngine | None` al constructor de `MonitoringOrchestrator`
+- [x] En `collect()`, construir `metrics_snapshot: dict[str, float]` con valores de sistema, Odoo y PG
+- [x] Llamar `await self._alert_engine.evaluate_rules(server_id, metrics_snapshot)` si está configurado
+- [x] En `tasks.py`, instanciar `AlertEngine` con repos y pasarlo al orquestador
+- **Verificación:** Crear regla de alerta con threshold bajo → aparece evento en `/api/v1/alerts/events`
+
+### 14.3 — WebSocket real-time pipeline → EN PROGRESO
+- [x] En `monitoring_orchestrator.collect()`, llamar `publish_metrics(server_id, snapshot)` tras guardar
+- [x] En `main.py` lifespan, lanzar tarea asyncio que suscribe a `ws:metrics:*` en Redis
+- [x] El subscriber llama `ws_manager.broadcast_to_server(server_id, data)` por cada mensaje
+- **Verificación:** Abrir detalle de servidor → métricas se actualizan sin recargar durante un ciclo de colección
+
+### 14.4 — Histórico de métricas Odoo y PostgreSQL ✓
+- [x] Añadir `get_odoo_range()` y `get_pg_range()` a `MetricRepository`
+- [x] Añadir endpoints `GET /servers/{id}/metrics/odoo/history` y `GET /servers/{id}/metrics/pg/history`
+- [x] Frontend: añadir `getOdooHistory()` y `getPgHistory()` en `metricsApi`
+- [x] Frontend: añadir hooks `useOdooHistory` y `usePgHistory`
+- [x] Frontend: añadir sección de gráficas Odoo/PG en `ServerDetailPage`
+- **Verificación:** Gráficas de conexiones PG y workers Odoo visibles con datos históricos
+
+### 14.5 — Push a GitHub
+- [ ] `git push origin master` (requiere autorización del usuario)
 
 ---
 

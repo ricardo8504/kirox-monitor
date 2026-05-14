@@ -30,7 +30,8 @@ async def test_connect_registers_websocket(manager):
 
     assert ws in manager._server_connections[str(server_id)]
     assert ws in manager._user_connections[str(user_id)]
-    ws.accept.assert_called_once()
+    # accept() is now called by the WS handler before connect(), not inside connect()
+    ws.accept.assert_not_called()
 
 
 @pytest.mark.asyncio

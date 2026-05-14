@@ -7,6 +7,11 @@ export interface MetricHistoryParams {
   to?: string;
 }
 
+export interface RangeParams {
+  from: string;
+  to: string;
+}
+
 export const metricsApi = {
   getLatest: async (serverId: string): Promise<MetricsSnapshot> => {
     const [system, odoo, pg] = await Promise.all([
@@ -30,5 +35,15 @@ export const metricsApi = {
   getHistory: (serverId: string, params?: MetricHistoryParams) =>
     apiClient
       .get<MetricResponse[]>(`/servers/${serverId}/metrics/history`, { params })
+      .then((r) => r.data),
+
+  getOdooHistory: (serverId: string, params: RangeParams) =>
+    apiClient
+      .get<OdooMetricResponse[]>(`/servers/${serverId}/metrics/odoo/history`, { params })
+      .then((r) => r.data),
+
+  getPgHistory: (serverId: string, params: RangeParams) =>
+    apiClient
+      .get<PgMetricResponse[]>(`/servers/${serverId}/metrics/pg/history`, { params })
       .then((r) => r.data),
 };

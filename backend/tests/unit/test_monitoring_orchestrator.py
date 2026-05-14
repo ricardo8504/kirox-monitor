@@ -1,5 +1,5 @@
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -18,6 +18,10 @@ def make_server(active: bool = True) -> MagicMock:
     s.ssh_user = "ubuntu"
     s.ssh_password_encrypted = None
     s.ssh_key_encrypted = None
+    s.db_password_encrypted = None
+    s.odoo_port = 8069
+    s.db_port = 5432
+    s.db_user = "postgres"
     s.is_active = active
     return s
 
@@ -34,6 +38,12 @@ def metric_repo():
     repo.insert_odoo.return_value = None
     repo.insert_pg.return_value = None
     return repo
+
+
+@pytest.fixture(autouse=True)
+def mock_ws_publish():
+    with patch("app.services.monitoring_orchestrator.publish_metrics"):
+        yield
 
 
 @pytest.fixture

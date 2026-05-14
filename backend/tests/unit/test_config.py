@@ -6,7 +6,7 @@ from app.core.config import Settings
 def test_settings_loads_correctly(test_settings: Settings) -> None:
     assert test_settings.app_env == "test"
     assert test_settings.jwt_algorithm == "HS256"
-    assert test_settings.access_token_expire_minutes == 60
+    assert test_settings.access_token_expire_minutes == 480
     assert test_settings.default_monitoring_interval == 60
 
 

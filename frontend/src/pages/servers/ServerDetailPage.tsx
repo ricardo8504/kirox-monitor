@@ -2,12 +2,19 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Wifi, Pencil } from "lucide-react";
 import { useServer, useTestConnection } from "@/hooks/useServers";
-import { useLatestMetrics, useLiveMetrics, useMetricHistory } from "@/hooks/useServerMetrics";
+import {
+  useLatestMetrics,
+  useLiveMetrics,
+  useMetricHistory,
+  useOdooHistory,
+  usePgHistory,
+} from "@/hooks/useServerMetrics";
 import { Button, Badge, Card, Spinner } from "@/components/ui";
 import { MetricGauge } from "@/components/metrics/MetricGauge";
 import { MetricChart } from "@/components/metrics/MetricChart";
+import { TimeSeriesChart } from "@/components/metrics/TimeSeriesChart";
 import { ServerFormModal } from "./ServerFormModal";
-import type { MetricType } from "@/types";
+import type { MetricType, OdooMetricResponse, PgMetricResponse } from "@/types";
 
 const RANGES = [
   { label: "1h", hours: 1 },
@@ -16,36 +23,6 @@ const RANGES = [
   { label: "7d", hours: 168 },
   { label: "30d", hours: 720 },
 ];
-
-interface ChartSectionProps {
-  serverId: string;
-  rangeHours: number;
-}
-
-function ChartSection({ serverId, rangeHours }: ChartSectionProps) {
-  const charts: { metric: MetricType; label: string; color: string; unit: string }[] = [
-    { metric: "CPU_USAGE", label: "CPU", color: "#f59e0b", unit: "%" },
-    { metric: "RAM_USAGE", label: "RAM", color: "#3b82f6", unit: "%" },
-    { metric: "DISK_USAGE", label: "Disco", color: "#10b981", unit: "%" },
-    { metric: "LOAD_AVG_1", label: "Load 1m", color: "#8b5cf6", unit: "" },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {charts.map(({ metric, label, color, unit }) => (
-        <ChartCard
-          key={metric}
-          serverId={serverId}
-          metric={metric}
-          label={label}
-          color={color}
-          unit={unit}
-          rangeHours={rangeHours}
-        />
-      ))}
-    </div>
-  );
-}
 
 interface ChartCardProps {
   serverId: string;
@@ -76,6 +53,62 @@ function ChartCard({ serverId, metric, label, color, unit, rangeHours }: ChartCa
   );
 }
 
+interface OdooChartCardProps {
+  label: string;
+  color: string;
+  unit: string;
+  data: OdooMetricResponse[];
+  field: keyof Pick<OdooMetricResponse, "workers_active" | "processes_hung" | "memory_mb" | "cpu_percent" | "response_time_ms" | "requests_concurrent">;
+  isLoading: boolean;
+}
+
+function OdooChartCard({ label, color, unit, data, field, isLoading }: OdooChartCardProps) {
+  const points = data
+    .filter((d) => d[field] != null)
+    .map((d) => ({ timestamp: d.timestamp, value: d[field] as number }));
+
+  return (
+    <Card title={label}>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-40"><Spinner /></div>
+      ) : points.length === 0 ? (
+        <div className="flex justify-center items-center h-40 text-gray-500 text-sm">
+          Sin datos para este período
+        </div>
+      ) : (
+        <TimeSeriesChart data={points} label={label} color={color} unit={unit} height={160} />
+      )}
+    </Card>
+  );
+}
+
+interface PgChartCardProps {
+  label: string;
+  color: string;
+  unit: string;
+  data: PgMetricResponse[];
+  field: keyof Pick<PgMetricResponse, "connections_active" | "slow_queries" | "locks" | "deadlocks" | "db_size_mb">;
+  isLoading: boolean;
+}
+
+function PgChartCard({ label, color, unit, data, field, isLoading }: PgChartCardProps) {
+  const points = data.map((d) => ({ timestamp: d.timestamp, value: d[field] as number }));
+
+  return (
+    <Card title={label}>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-40"><Spinner /></div>
+      ) : points.length === 0 ? (
+        <div className="flex justify-center items-center h-40 text-gray-500 text-sm">
+          Sin datos para este período
+        </div>
+      ) : (
+        <TimeSeriesChart data={points} label={label} color={color} unit={unit} height={160} />
+      )}
+    </Card>
+  );
+}
+
 export function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -86,6 +119,9 @@ export function ServerDetailPage() {
   const { data: latestMetrics } = useLatestMetrics(id!);
   const liveMetrics = useLiveMetrics(id!);
   const testMutation = useTestConnection();
+
+  const { data: odooHistory = [], isLoading: odooHistoryLoading } = useOdooHistory(id!, rangeHours);
+  const { data: pgHistory = [], isLoading: pgHistoryLoading } = usePgHistory(id!, rangeHours);
 
   if (serverLoading) {
     return (
@@ -110,6 +146,25 @@ export function ServerDetailPage() {
 
   const odoo = liveMetrics?.odoo ?? latestMetrics?.odoo ?? null;
   const pg = liveMetrics?.pg ?? latestMetrics?.pg ?? null;
+
+  const rangeButtons = (
+    <div className="flex gap-1">
+      {RANGES.map(({ label, hours }) => (
+        <button
+          key={hours}
+          type="button"
+          onClick={() => setRangeHours(hours)}
+          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+            rangeHours === hours
+              ? "bg-brand-600 text-white"
+              : "bg-gray-800 text-gray-400 hover:text-white"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -214,27 +269,54 @@ export function ServerDetailPage() {
         </Card>
       )}
 
+      {/* Sistema histórico */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white">Histórico de métricas</h2>
-          <div className="flex gap-1">
-            {RANGES.map(({ label, hours }) => (
-              <button
-                key={hours}
-                type="button"
-                onClick={() => setRangeHours(hours)}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  rangeHours === hours
-                    ? "bg-brand-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-white"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <h2 className="text-sm font-semibold text-white">Sistema — histórico</h2>
+          {rangeButtons}
         </div>
-        <ChartSection serverId={id!} rangeHours={rangeHours} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(
+            [
+              { metric: "CPU_USAGE" as MetricType, label: "CPU", color: "#f59e0b", unit: "%" },
+              { metric: "RAM_USAGE" as MetricType, label: "RAM", color: "#3b82f6", unit: "%" },
+              { metric: "DISK_USAGE" as MetricType, label: "Disco", color: "#10b981", unit: "%" },
+              { metric: "LOAD_AVG_1" as MetricType, label: "Load 1m", color: "#8b5cf6", unit: "" },
+            ] as const
+          ).map(({ metric, label, color, unit }) => (
+            <ChartCard
+              key={metric}
+              serverId={id!}
+              metric={metric}
+              label={label}
+              color={color}
+              unit={unit}
+              rangeHours={rangeHours}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Odoo histórico */}
+      <div>
+        <h2 className="text-sm font-semibold text-white mb-3">Odoo — histórico</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <OdooChartCard label="Workers activos" color="#22d3ee" unit="" data={odooHistory} field="workers_active" isLoading={odooHistoryLoading} />
+          <OdooChartCard label="Memoria (MB)" color="#a78bfa" unit=" MB" data={odooHistory} field="memory_mb" isLoading={odooHistoryLoading} />
+          <OdooChartCard label="CPU Odoo %" color="#fb923c" unit="%" data={odooHistory} field="cpu_percent" isLoading={odooHistoryLoading} />
+          <OdooChartCard label="Tiempo respuesta (ms)" color="#f472b6" unit=" ms" data={odooHistory} field="response_time_ms" isLoading={odooHistoryLoading} />
+        </div>
+      </div>
+
+      {/* PG histórico */}
+      <div>
+        <h2 className="text-sm font-semibold text-white mb-3">PostgreSQL — histórico</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <PgChartCard label="Conexiones activas" color="#34d399" unit="" data={pgHistory} field="connections_active" isLoading={pgHistoryLoading} />
+          <PgChartCard label="Tamaño BD (MB)" color="#60a5fa" unit=" MB" data={pgHistory} field="db_size_mb" isLoading={pgHistoryLoading} />
+          <PgChartCard label="Locks no concedidos" color="#fbbf24" unit="" data={pgHistory} field="locks" isLoading={pgHistoryLoading} />
+          <PgChartCard label="Consultas lentas" color="#f87171" unit="" data={pgHistory} field="slow_queries" isLoading={pgHistoryLoading} />
+        </div>
       </div>
 
       <Card title="Información del servidor">

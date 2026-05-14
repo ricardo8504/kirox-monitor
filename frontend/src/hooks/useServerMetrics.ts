@@ -36,6 +36,38 @@ export function useMetricHistory(
   });
 }
 
+export function useOdooHistory(serverId: string, rangeHours: number) {
+  return useQuery({
+    queryKey: ["metrics", serverId, "odoo-history", rangeHours],
+    queryFn: () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - rangeHours * 60 * 60 * 1000);
+      return metricsApi.getOdooHistory(serverId, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
+
+export function usePgHistory(serverId: string, rangeHours: number) {
+  return useQuery({
+    queryKey: ["metrics", serverId, "pg-history", rangeHours],
+    queryFn: () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - rangeHours * 60 * 60 * 1000);
+      return metricsApi.getPgHistory(serverId, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
+
 export function useLiveMetrics(serverId: string) {
   const updateLiveMetrics = useServerStore((s) => s.updateLiveMetrics);
   const liveMetrics = useServerStore((s) => s.liveMetrics[serverId]);

@@ -1,7 +1,8 @@
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.server import Server
@@ -29,6 +30,13 @@ class ServerRepository:
     async def delete(self, server: Server) -> None:
         await self._session.delete(server)
         await self._session.flush()
+
+    async def update_last_seen(self, server_id: uuid.UUID, ts: datetime) -> None:
+        await self._session.execute(
+            update(Server)
+            .where(Server.id == server_id)
+            .values(last_seen=ts.isoformat())
+        )
 
     async def list(
         self,

@@ -8,8 +8,10 @@ from app.core.config import settings
 from app.core.database import CelerySessionLocal
 from app.core.logging import get_logger
 from app.models.metric import Metric, OdooMetric, PgMetric
+from app.repositories.alert_repository import AlertEventRepository, AlertRuleRepository
 from app.repositories.metric_repository import MetricRepository
 from app.repositories.server_repository import ServerRepository
+from app.services.alert_engine import AlertEngine
 from app.services.monitoring_orchestrator import MonitoringOrchestrator
 from app.services.ssh_manager import ssh_manager
 from app.workers.celery_app import celery_app
@@ -25,6 +27,10 @@ def collect_metrics(self, server_id: str) -> dict:  # type: ignore[no-untyped-de
                 server_repo=ServerRepository(session),
                 metric_repo=MetricRepository(session),
                 ssh=ssh_manager,
+                alert_engine=AlertEngine(
+                    rule_repo=AlertRuleRepository(session),
+                    event_repo=AlertEventRepository(session),
+                ),
             )
             success = await orchestrator.collect(uuid.UUID(server_id))
             if success:

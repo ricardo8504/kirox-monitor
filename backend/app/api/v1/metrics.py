@@ -77,3 +77,33 @@ async def get_latest_pg(
 ) -> PgMetricResponse | None:
     m = await repo.get_latest_pg(server_id)
     return PgMetricResponse.model_validate(m) if m else None
+
+
+@router.get(
+    "/servers/{server_id}/metrics/odoo/history",
+    response_model=list[OdooMetricResponse],
+    dependencies=[Depends(_any_role)],
+)
+async def get_odoo_history(
+    server_id: uuid.UUID,
+    from_ts: datetime = Query(..., alias="from"),
+    to_ts: datetime = Query(..., alias="to"),
+    repo: MetricRepository = Depends(get_metric_repo),
+) -> list[OdooMetricResponse]:
+    items = await repo.get_odoo_range(server_id, from_ts, to_ts)
+    return [OdooMetricResponse.model_validate(m) for m in items]
+
+
+@router.get(
+    "/servers/{server_id}/metrics/pg/history",
+    response_model=list[PgMetricResponse],
+    dependencies=[Depends(_any_role)],
+)
+async def get_pg_history(
+    server_id: uuid.UUID,
+    from_ts: datetime = Query(..., alias="from"),
+    to_ts: datetime = Query(..., alias="to"),
+    repo: MetricRepository = Depends(get_metric_repo),
+) -> list[PgMetricResponse]:
+    items = await repo.get_pg_range(server_id, from_ts, to_ts)
+    return [PgMetricResponse.model_validate(m) for m in items]

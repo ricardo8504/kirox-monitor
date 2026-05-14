@@ -82,3 +82,37 @@ class MetricRepository:
             .limit(1)
         )
         return result.scalar_one_or_none()
+
+    async def get_odoo_range(
+        self,
+        server_id: uuid.UUID,
+        from_ts: datetime,
+        to_ts: datetime,
+    ) -> Sequence[OdooMetric]:
+        result = await self._session.execute(
+            select(OdooMetric)
+            .where(
+                OdooMetric.server_id == server_id,
+                OdooMetric.timestamp >= from_ts,
+                OdooMetric.timestamp <= to_ts,
+            )
+            .order_by(OdooMetric.timestamp.asc())
+        )
+        return result.scalars().all()
+
+    async def get_pg_range(
+        self,
+        server_id: uuid.UUID,
+        from_ts: datetime,
+        to_ts: datetime,
+    ) -> Sequence[PgMetric]:
+        result = await self._session.execute(
+            select(PgMetric)
+            .where(
+                PgMetric.server_id == server_id,
+                PgMetric.timestamp >= from_ts,
+                PgMetric.timestamp <= to_ts,
+            )
+            .order_by(PgMetric.timestamp.asc())
+        )
+        return result.scalars().all()
