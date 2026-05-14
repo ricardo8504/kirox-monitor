@@ -36,6 +36,10 @@ class Server(BaseModel):
         Enum(Environment, name="environment"), nullable=False, default=Environment.PRODUCTION
     )
     monitoring_interval: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+    odoo_port: Mapped[int] = mapped_column(Integer, nullable=False, default=8069)
+    db_port: Mapped[int] = mapped_column(Integer, nullable=False, default=5432)
+    db_user: Mapped[str] = mapped_column(String(100), nullable=False, default="postgres")
+    db_password_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_seen: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

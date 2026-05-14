@@ -16,6 +16,10 @@ class ServerCreate(BaseModel):
     server_type: ServerType = ServerType.PRODUCTION
     environment: Environment = Environment.PRODUCTION
     monitoring_interval: int = 60
+    odoo_port: int = 8069
+    db_port: int = 5432
+    db_user: str = "postgres"
+    db_password: str | None = None
 
     @field_validator("port")
     @classmethod
@@ -48,6 +52,10 @@ class ServerUpdate(BaseModel):
     server_type: ServerType | None = None
     environment: Environment | None = None
     monitoring_interval: int | None = None
+    odoo_port: int | None = None
+    db_port: int | None = None
+    db_user: str | None = None
+    db_password: str | None = None
     is_active: bool | None = None
 
 
@@ -60,6 +68,9 @@ class ServerResponse(BaseModel):
     server_type: ServerType
     environment: Environment
     monitoring_interval: int
+    odoo_port: int
+    db_port: int
+    db_user: str
     is_active: bool
     last_seen: str | None
     created_by: uuid.UUID | None

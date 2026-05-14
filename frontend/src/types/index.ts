@@ -37,6 +37,9 @@ export interface Server {
   server_type: ServerType;
   environment: Environment;
   monitoring_interval: number;
+  odoo_port: number;
+  db_port: number;
+  db_user: string;
   is_active: boolean;
   last_seen: string | null;
   created_by: string | null;
@@ -53,6 +56,10 @@ export interface ServerCreate {
   server_type: ServerType;
   environment: Environment;
   monitoring_interval?: number;
+  odoo_port?: number;
+  db_port?: number;
+  db_user?: string;
+  db_password?: string;
 }
 
 export interface ServerUpdate {
@@ -65,6 +72,10 @@ export interface ServerUpdate {
   server_type?: ServerType;
   environment?: Environment;
   monitoring_interval?: number;
+  odoo_port?: number;
+  db_port?: number;
+  db_user?: string;
+  db_password?: string;
   is_active?: boolean;
 }
 

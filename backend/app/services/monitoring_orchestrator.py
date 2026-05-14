@@ -8,10 +8,10 @@ from app.models.metric import Metric, MetricType, OdooMetric, PgMetric
 from app.models.server import Server
 from app.repositories.metric_repository import MetricRepository
 from app.repositories.server_repository import ServerRepository
-from app.services.collectors.odoo_collector import COMMANDS as ODOO_COMMANDS
 from app.services.collectors.odoo_collector import OdooCollector
-from app.services.collectors.pg_collector import COMMANDS as PG_COMMANDS
+from app.services.collectors.odoo_collector import get_commands as get_odoo_commands
 from app.services.collectors.pg_collector import PgCollector
+from app.services.collectors.pg_collector import get_commands as get_pg_commands
 from app.services.collectors.system_collector import SystemCollector
 from app.services.ssh_manager import SSHManager
 
@@ -36,6 +36,9 @@ class MonitoringOrchestrator:
         password = decrypt(server.ssh_password_encrypted) if server.ssh_password_encrypted else None
         key = decrypt(server.ssh_key_encrypted) if server.ssh_key_encrypted else None
         return password, key
+
+    def _decrypt_db_password(self, server: "Server") -> str | None:
+        return decrypt(server.db_password_encrypted) if server.db_password_encrypted else None
 
     def _run_commands(self, server: "Server", commands: dict[str, str]) -> dict[str, str]:
         password, key = self._decrypt_creds(server)
@@ -68,9 +71,14 @@ class MonitoringOrchestrator:
             logger.warning("ssh_collect_failed", server_id=str(server_id), error=str(exc))
             return False
 
+        db_password = self._decrypt_db_password(server)
         sys_m = self._sys.parse(sys_out)
-        odoo_m = self._odoo.parse(self._run_commands(server, ODOO_COMMANDS))
-        pg_m = self._pg.parse(self._run_commands(server, PG_COMMANDS))
+        odoo_m = self._odoo.parse(self._run_commands(server, get_odoo_commands(server.odoo_port)))
+        pg_m = self._pg.parse(self._run_commands(server, get_pg_commands(
+            db_port=server.db_port,
+            db_user=server.db_user,
+            db_password=db_password,
+        )))
 
         batch: list[Metric] = []
         scalar_metrics = [

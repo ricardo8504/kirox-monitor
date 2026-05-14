@@ -21,10 +21,17 @@ QUERIES = {
     "db_size": "SELECT pg_database_size(current_database()) / 1048576.0;",
 }
 
-COMMANDS = {
-    k: f"psql -U postgres -t -A -c \"{v}\" 2>/dev/null"
-    for k, v in QUERIES.items()
-}
+def get_commands(
+    db_port: int = 5432,
+    db_user: str = "postgres",
+    db_password: str | None = None,
+) -> dict[str, str]:
+    env = f"PGPASSWORD={db_password} " if db_password else ""
+    opts = f"-U {db_user} -p {db_port}"
+    return {
+        k: f"{env}psql {opts} -t -A -c \"{v}\" 2>/dev/null"
+        for k, v in QUERIES.items()
+    }
 
 
 def _parse_int(output: str) -> int:

@@ -11,15 +11,16 @@ class OdooMetrics:
     requests_concurrent: int = 0
 
 
-COMMANDS = {
-    "procs": "ps aux | grep -E 'openerp|odoo' | grep -v grep",
-    "mem": "ps aux | grep -E 'openerp|odoo' | grep -v grep | awk '{sum+=$6} END {print sum+0}'",
-    "cpu": "ps aux | grep -E 'openerp|odoo' | grep -v grep | awk '{sum+=$3} END {print sum+0}'",
-    "http": (  # noqa: E501
-        "curl -s -o /dev/null -w '%{time_total}' http://localhost:8069 "
-        "--connect-timeout 5 2>/dev/null || echo ''"
-    ),
-}
+def get_commands(odoo_port: int = 8069) -> dict[str, str]:
+    return {
+        "procs": "ps aux | grep -E 'openerp|odoo' | grep -v grep",
+        "mem": "ps aux | grep -E 'openerp|odoo' | grep -v grep | awk '{sum+=$6} END {print sum+0}'",
+        "cpu": "ps aux | grep -E 'openerp|odoo' | grep -v grep | awk '{sum+=$3} END {print sum+0}'",
+        "http": (
+            f"curl -s -o /dev/null -w '%{{time_total}}' http://localhost:{odoo_port} "
+            "--connect-timeout 5 2>/dev/null || echo ''"
+        ),
+    }
 
 _HUNG_CPU_THRESHOLD = 90.0
 

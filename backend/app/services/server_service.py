@@ -22,6 +22,8 @@ class ServerService:
             server.ssh_password_encrypted = encrypt(data.ssh_password)
         if hasattr(data, "ssh_key") and data.ssh_key:
             server.ssh_key_encrypted = encrypt(data.ssh_key)
+        if hasattr(data, "db_password") and data.db_password:
+            server.db_password_encrypted = encrypt(data.db_password)
 
     def _decrypt_for_ssh(self, server: Server) -> tuple[str | None, str | None]:
         password = decrypt(server.ssh_password_encrypted) if server.ssh_password_encrypted else None
@@ -39,6 +41,9 @@ class ServerService:
             server_type=data.server_type,
             environment=data.environment,
             monitoring_interval=data.monitoring_interval,
+            odoo_port=data.odoo_port,
+            db_port=data.db_port,
+            db_user=data.db_user,
             created_by=created_by,
         )
         self._encrypt_credentials(server, data)
@@ -65,7 +70,7 @@ class ServerService:
     async def update(self, server_id: uuid.UUID, data: ServerUpdate) -> Server:
         server = await self.get(server_id)
         for field in ("name", "host", "port", "ssh_user", "server_type", "environment",
-                      "monitoring_interval", "is_active"):
+                      "monitoring_interval", "odoo_port", "db_port", "db_user", "is_active"):
             val = getattr(data, field, None)
             if val is not None:
                 setattr(server, field, val)

@@ -4,7 +4,7 @@ import { metricsApi } from "@/api/metrics";
 import { useServerStore } from "@/stores/serverStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useServerMetricsWs } from "./useWebSocket";
-import type { WsMessage } from "@/types";
+import type { MetricType, WsMessage } from "@/types";
 
 export function useLatestMetrics(serverId: string) {
   return useQuery({
@@ -12,6 +12,27 @@ export function useLatestMetrics(serverId: string) {
     queryFn: () => metricsApi.getLatest(serverId),
     staleTime: 15_000,
     refetchInterval: 60_000,
+  });
+}
+
+export function useMetricHistory(
+  serverId: string,
+  metric: MetricType,
+  rangeHours: number,
+) {
+  return useQuery({
+    queryKey: ["metrics", serverId, "history", metric, rangeHours],
+    queryFn: () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - rangeHours * 60 * 60 * 1000);
+      return metricsApi.getHistory(serverId, {
+        metric,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
   });
 }
 

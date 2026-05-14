@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, RefreshCw, Wifi } from "lucide-react";
+import { Plus, RefreshCw, Wifi, Pencil } from "lucide-react";
 import { useServers, useDeleteServer, useTestConnection } from "@/hooks/useServers";
 import { Button, Badge, Table, Spinner, EmptyState, Modal, Card } from "@/components/ui";
 import type { Server } from "@/types";
@@ -9,6 +9,7 @@ import { ServerFormModal } from "./servers/ServerFormModal";
 export function ServersPage() {
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
+  const [editTarget, setEditTarget] = useState<Server | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Server | null>(null);
 
   const { data, isLoading, refetch } = useServers();
@@ -75,11 +76,19 @@ export function ServersPage() {
             <Wifi className="w-3.5 h-3.5" />
           </Button>
           <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setEditTarget(s)}
+            title="Editar"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button
             variant="danger"
             size="sm"
             onClick={() => setDeleteTarget(s)}
           >
-            Delete
+            Eliminar
           </Button>
         </div>
       ),
@@ -133,6 +142,11 @@ export function ServersPage() {
       </Card>
 
       <ServerFormModal open={showCreate} onClose={() => setShowCreate(false)} />
+      <ServerFormModal
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        server={editTarget ?? undefined}
+      />
 
       <Modal
         open={!!deleteTarget}
